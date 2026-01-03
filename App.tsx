@@ -53,9 +53,26 @@ const App: React.FC = () => {
 
     const uploaderRef = useRef<ZenodoUploaderRef>(null);
 
+    // Salvar histórico
     useEffect(() => {
         localStorage.setItem('scientific_history', JSON.stringify(history));
     }, [history]);
+
+    // Salvar autores
+    useEffect(() => {
+        localStorage.setItem('all_authors_data', JSON.stringify(authors));
+    }, [authors]);
+
+    const handleSaveApiKeys = (keys: { gemini: string[], zenodo: string, xai: string }) => {
+        if (keys.gemini.length > 0) {
+            localStorage.setItem('gemini_api_keys', JSON.stringify(keys.gemini));
+            // Também salva no formato de chave única para compatibilidade legada
+            localStorage.setItem('gemini_api_key', keys.gemini[0]);
+        }
+        localStorage.setItem('zenodo_api_key', keys.zenodo);
+        localStorage.setItem('xai_api_key', keys.xai);
+        setIsApiModalOpen(false);
+    };
 
     // Extração Automática de Metadados do LaTeX com Debounce para Performance
     const syncMetadata = useCallback((code: string) => {
@@ -132,7 +149,7 @@ const App: React.FC = () => {
 
     return (
         <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
-            <ApiKeyModal isOpen={isApiModalOpen} onClose={() => setIsApiModalOpen(false)} onSave={() => setIsApiModalOpen(false)} />
+            <ApiKeyModal isOpen={isApiModalOpen} onClose={() => setIsApiModalOpen(false)} onSave={handleSaveApiKeys} />
             <PersonalDataModal isOpen={isPersonalDataModalOpen} onClose={() => setIsPersonalDataModalOpen(false)} onSave={(d) => { setAuthors(d); setIsPersonalDataModalOpen(false); }} initialData={authors} />
 
             <header className="bg-white border-b border-slate-200 sticky top-0 z-10">
