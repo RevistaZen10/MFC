@@ -24,7 +24,7 @@ const App: React.FC = () => {
 
     // == ESTADO DO GERADOR (Módulo 1) ==
     const [language, setLanguage] = useState<Language>('pt');
-    const [generationModel, setGenerationModel] = useState('gemini-2.5-flash');
+    const [generationModel, setGenerationModel] = useState('gemini-3-pro-preview');
     const [selectedDiscipline, setSelectedDiscipline] = useState<string>(getAllDisciplines()[0]);
     const [isGenerating, setIsGenerating] = useState(false);
     const [genProgress, setGenProgress] = useState(0);
@@ -46,9 +46,14 @@ const App: React.FC = () => {
         const s = localStorage.getItem('scientific_history');
         return s ? JSON.parse(s) : [];
     });
+
+    // ATUALIZAÇÃO DOS AUTORES PADRÃO
     const [authors, setAuthors] = useState<PersonalData[]>(() => {
         const s = localStorage.getItem('all_authors_data');
-        return s ? JSON.parse(s) : [{ name: 'SÉRGIO DE ANDRADE, PAULO', affiliation: 'Faculdade de Guarulhos (FG)', orcid: '0009-0004-2555-3178' }];
+        return s ? JSON.parse(s) : [
+            { name: 'Revista, Zen', affiliation: 'Editorial Center', orcid: '0009-0007-6299-2008' },
+            { name: 'MATH, 10', affiliation: 'Scientific Department', orcid: '0009-0007-6299-2008' }
+        ];
     });
 
     const uploaderRef = useRef<ZenodoUploaderRef>(null);
@@ -57,23 +62,30 @@ const App: React.FC = () => {
         localStorage.setItem('scientific_history', JSON.stringify(history));
     }, [history]);
 
-    // Extração Automática de Metadados do LaTeX com Debounce para Performance
+    useEffect(() => {
+        localStorage.setItem('all_authors_data', JSON.stringify(authors));
+    }, [authors]);
+
+    // Extração Automática de Metadados do LaTeX
     const syncMetadata = useCallback((code: string) => {
-        const title = code.match(/\\title\{(.*?)\}/)?.[1] || '';
-        const abstract = code.match(/\\begin\{abstract\}([\s\S]*?)\\end\{abstract\}/)?.[1]?.trim() || '';
-        const keywords = code.match(/\\keywords\{(.*?)\}/)?.[1] || '';
+        const titleMatch = code.match(/\\title\{(.*?)\}/);
+        const title = titleMatch ? titleMatch[1].replace(/\\/g, '').trim() : '';
+        
+        const abstractMatch = code.match(/\\begin\{abstract\}([\s\S]*?)\\end\{abstract\}/);
+        const abstract = abstractMatch ? abstractMatch[1].trim() : '';
+        
+        const keywordsMatch = code.match(/\\keywords\{(.*?)\}/);
+        const keywords = keywordsMatch ? keywordsMatch[1].trim() : '';
+        
         setMetadata({ title, abstract, keywords, authors });
     }, [authors]);
 
-    // Ao mudar o código manualmente, limpa o PDF anterior para evitar confusão
     const handleCodeChange = (newCode: string) => {
         setLatexToCompile(newCode);
         setPdfUrl('');
         setPdfFile(null);
         setZenodoStatus(null);
-        // Debounce simples para syncMetadata
-        const timer = setTimeout(() => syncMetadata(newCode), 500);
-        return () => clearTimeout(timer);
+        syncMetadata(newCode);
     };
 
     const handleGenerate = async () => {
@@ -91,7 +103,7 @@ const App: React.FC = () => {
             let currentPaper = paper;
             setGenProgress(50);
 
-            setGenStatus('Refinando qualidade acadêmica (Iteração única)...');
+            setGenStatus('Refinando qualidade acadêmica...');
             const analysis = await analyzePaper(currentPaper, 10, generationModel);
             currentPaper = await improvePaper(currentPaper, analysis, language, generationModel);
             
@@ -114,17 +126,18 @@ const App: React.FC = () => {
                 body: JSON.stringify({ latex: latexToCompile }),
             });
 
-            if (!response.ok) throw new Error('Falha na compilação.');
+            const result = await response.json();
+            if (!response.ok) throw new Error(result.error || 'Falha na compilação.');
             
-            const base64 = await response.text();
+            const base64 = typeof result === 'string' ? result : result.pdf;
             const url = `data:application/pdf;base64,${base64}`;
             const blob = await (await fetch(url)).blob();
             const file = new File([blob], "artigo.pdf", { type: "application/pdf" });
             
             setPdfUrl(url);
             setPdfFile(file);
-        } catch (e) {
-            alert('Erro ao compilar PDF. Verifique a sintaxe LaTeX.');
+        } catch (e: any) {
+            alert(`Erro na compilação:\n\n${e.message}`);
         } finally {
             setIsCompiling(false);
         }
@@ -138,7 +151,7 @@ const App: React.FC = () => {
             <header className="bg-white border-b border-slate-200 sticky top-0 z-10">
                 <div className="container mx-auto px-6 py-4 flex justify-between items-center">
                     <div>
-                        <h1 className="text-2xl font-black tracking-tight text-indigo-600">SCIENTIFIC GEN 2.0</h1>
+                        <h1 className="text-2xl font-black tracking-tight text-indigo-600">SCIENTIFIC GEN 3.0</h1>
                         <p className="text-xs text-slate-500 font-medium">IA → LaTeX → PDF → ZENODO</p>
                     </div>
                     <div className="flex items-center gap-3">
@@ -149,7 +162,6 @@ const App: React.FC = () => {
             </header>
 
             <main className="container mx-auto px-6 py-8">
-                {/* Tabs de Navegação */}
                 <div className="flex bg-white rounded-xl p-1 shadow-sm border border-slate-200 mb-8 max-w-2xl mx-auto">
                     <button 
                         onClick={() => setActiveTab('generator')}
@@ -170,7 +182,6 @@ const App: React.FC = () => {
 
                 {activeTab === 'generator' ? (
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-fadeIn">
-                        {/* Configurações de Geração */}
                         <div className="bg-white p-8 rounded-2xl shadow-xl border border-slate-100">
                             <h2 className="text-xl font-bold mb-6 flex items-center gap-2 text-indigo-700">
                                 <span className="bg-indigo-50 p-2 rounded-lg">⚙️</span> Geração por IA
@@ -188,7 +199,6 @@ const App: React.FC = () => {
                             </div>
                         </div>
 
-                        {/* Resultado do Gerador */}
                         <div className="bg-white p-8 rounded-2xl shadow-xl border border-slate-100 flex flex-col">
                             <h2 className="text-xl font-bold mb-6 text-indigo-700">Status & LaTeX</h2>
                             {isGenerating ? (
@@ -224,7 +234,6 @@ const App: React.FC = () => {
                 ) : (
                     <div className="space-y-8 animate-fadeIn">
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                            {/* Editor e Compilador */}
                             <div className="lg:col-span-2 bg-white p-8 rounded-2xl shadow-xl border border-slate-100">
                                 <h2 className="text-xl font-bold mb-6 flex items-center gap-2 text-indigo-700">
                                     <span className="bg-indigo-50 p-2 rounded-lg">🖋️</span> Editor de LaTeX
@@ -261,7 +270,6 @@ const App: React.FC = () => {
                                 )}
                             </div>
 
-                            {/* Detalhes Zenodo */}
                             <div className="bg-white p-8 rounded-2xl shadow-xl border border-slate-100 border-l-4 border-l-green-500 h-fit sticky top-28">
                                 <h2 className="text-xl font-bold mb-6 text-green-700">Metadados Zenodo</h2>
                                 <ZenodoUploader 
@@ -285,7 +293,6 @@ const App: React.FC = () => {
                             </div>
                         </div>
 
-                        {/* Histórico Global */}
                         <div className="bg-white p-8 rounded-2xl shadow-xl border border-slate-100">
                             <div className="flex justify-between items-center mb-6">
                                 <h2 className="text-xl font-bold text-slate-800">📚 Meus Artigos Publicados</h2>
