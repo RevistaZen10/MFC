@@ -8,6 +8,9 @@ export const ARTICLE_TEMPLATE = `\\documentclass[12pt,a4paper]{article}
 % Babel package will be added dynamically based on language
 \\usepackage[unicode=true]{hyperref}
 
+% Definição de comando para palavras-chave para facilitar extração
+\\newcommand{\\keywords}[1]{\\vspace{0.5cm}\\noindent\\textbf{Keywords: } #1}
+
 \\hypersetup{
   pdftitle={[INSERT NEW TITLE HERE]},
   pdfauthor={__PDF_AUTHOR_NAMES_PLACEHOLDER__},
@@ -33,9 +36,7 @@ export const ARTICLE_TEMPLATE = `\\documentclass[12pt,a4paper]{article}
 [INSERT NEW COMPLETE ABSTRACT HERE. This must be plain text without LaTeX commands.]
 \\end{abstract}
 
-\\vspace{1cm}
-
-\\noindent \\textbf{Keywords:} [INSERT COMMA-SEPARATED KEYWORDS HERE]
+\\keywords{[INSERT COMMA-SEPARATED KEYWORDS HERE]}
 
 \\onehalfspacing
 
