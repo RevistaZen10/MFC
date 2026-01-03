@@ -2,7 +2,7 @@
 import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
 import type { Language, AnalysisResult, PaperSource, StyleGuide, SemanticScholarPaper, PersonalData } from '../types';
 import { ANALYSIS_TOPICS, LANGUAGES, FIX_OPTIONS, STYLE_GUIDES, SEMANTIC_SCHOLAR_API_BASE_URL } from '../constants';
-import { ARTICLE_TEMPLATE } from './articleTemplate'; // Import the single article template
+import { ARTICLE_TEMPLATE } from './articleTemplate'; 
 
 const BABEL_LANG_MAP: Record<Language, string> = {
     en: 'english',
@@ -298,12 +298,12 @@ export async function generateInitialPaper(title: string, language: Language, pa
     const systemInstruction = `Act as a world-class LaTeX scientific paper generator. Write a complete, rigorous paper in **${languageName}**.
 
 **METADATA FORMATTING RULES (CRITICAL):**
-1.  **Title**: Use \`\\title{${title}}\`.
-2.  **Abstract**: Content inside \`\\begin{abstract}...\` must be a high-quality summary.
-3.  **Keywords**: IMMEDIATELY after \`\\end{abstract}\`, use exactly \`\\keywords{key1, key2, key3, key4}\`.
+1.  **Title**: Use exactly \`\\title{${title}}\`.
+2.  **Abstract**: Content inside \`\\begin{abstract}...\` must be high-quality summary.
+3.  **Keywords**: IMMEDIATELY after \`\\end{abstract}\`, use exactly \`\\keywords{key1, key2, key3}\`. DO NOT redefine the \\keywords command in the document.
 4.  **No Figures**: Do NOT use \`\\includegraphics\` or \`\\begin{figure}\`.
 5.  **Citations**: Generate ${referenceCount} academic citations. No \`\\bibitem\`.
-6.  **Template**: Follow the provided structure exactly.`;
+6.  **Template Compatibility**: Use ONLY the packages and structure provided in the template. DO NOT add new \`\\newcommand\` definitions that require parameters unless you follow the template.`;
 
     let template = ARTICLE_TEMPLATE.replace('% Babel package will be added dynamically based on language', `\\usepackage[${babelLanguage}]{babel}`)
         .replace('[INSERT REFERENCE COUNT]', String(referenceCount))

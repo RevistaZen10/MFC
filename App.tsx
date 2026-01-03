@@ -15,9 +15,16 @@ const App: React.FC = () => {
         return localStorage.getItem('last_latex_session') || `% Comece seu artigo aqui...
 \\documentclass[12pt,a4paper]{article}
 \\usepackage[utf8]{inputenc}
+\\usepackage[T1]{fontenc}
+\\usepackage{amsmath, amssymb, geometry, setspace, url}
+\\usepackage[english]{babel}
+
+% Definição robusta de palavras-chave
 \\newcommand{\\keywords}[1]{\\vspace{0.5cm}\\noindent\\textbf{Keywords: } #1}
+
 \\title{Título do meu Artigo}
 \\author{Autor Exemplo}
+
 \\begin{document}
 \\maketitle
 \\begin{abstract}
@@ -72,8 +79,6 @@ Conteúdo aqui...
     const syncMetadata = useCallback((code: string) => {
         const titleMatch = code.match(/\\title\{(.*?)\}/);
         const abstractMatch = code.match(/\\begin\{abstract\}([\s\S]*?)\\end\{abstract\}/);
-        
-        // Tenta capturar do comando \keywords{...} ou do texto Keywords: ...
         const keywordsMatch = code.match(/\\keywords\{(.*?)\}/) || code.match(/Keywords:\s*(.*)/i);
         
         setMetadata({
@@ -104,15 +109,21 @@ Conteúdo aqui...
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ latex: latexToCompile }),
             });
-            if (!response.ok) throw new Error('Falha na compilação.');
+            
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Erro desconhecido na compilação.');
+            }
+            
             const base64 = await response.text();
             const url = `data:application/pdf;base64,${base64}`;
             const blob = await (await fetch(url)).blob();
             const file = new File([blob], "artigo.pdf", { type: "application/pdf" });
             setPdfUrl(url);
             setPdfFile(file);
-        } catch (e) {
-            alert('Erro ao compilar PDF. Verifique a sintaxe LaTeX no editor.');
+        } catch (e: any) {
+            console.error(e);
+            alert(`Erro na compilação:\n\n${e.message}\n\nVerifique se não há caracteres especiais sem escape (%, $, _) ou comandos mal definidos.`);
         } finally {
             setIsCompiling(false);
         }
