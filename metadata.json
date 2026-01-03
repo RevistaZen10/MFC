@@ -1,0 +1,5 @@
+{
+  "name": "Copy of GeradorArtigo",
+  "description": "An AI-powered application to generate a complete scientific paper from a title, then perform a rigorous multi-iteration analysis across 22 quality metrics to provide feedback and improvements.",
+  "requestFramePermissions": []
+}
