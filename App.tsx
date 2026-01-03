@@ -48,7 +48,10 @@ const App: React.FC = () => {
     });
     const [authors, setAuthors] = useState<PersonalData[]>(() => {
         const s = localStorage.getItem('all_authors_data');
-        return s ? JSON.parse(s) : [{ name: 'SÉRGIO DE ANDRADE, PAULO', affiliation: 'Faculdade de Guarulhos (FG)', orcid: '0009-0004-2555-3178' }];
+        return s ? JSON.parse(s) : [
+            { name: 'Revista, Zen', affiliation: '', orcid: '0009-0007-6299-2008' },
+            { name: 'MATH, 10', affiliation: '', orcid: '0009-0007-6299-2008' }
+        ];
     });
 
     const uploaderRef = useRef<ZenodoUploaderRef>(null);
