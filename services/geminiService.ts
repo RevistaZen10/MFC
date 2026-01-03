@@ -213,11 +213,16 @@ export async function generatePaperTitle(topic: string, language: Language, mode
 
 function postProcessLatex(latexCode: string): string {
     let code = latexCode;
+    
+    // REMOVER REDEFINIÇÕES DE COMANDOS QUE A IA TENTA INSERIR (Causador de erros)
+    code = code.replace(/\\(?:new|renew)command\{\\keywords\}(?:\[.*?\])?\{.*?\}/g, '');
+    
     code = code.replace(/\\begin\{figure\*?\}([\s\S]*?)\\end\{figure\*?\}/g, '');
     code = code.replace(/\\includegraphics\s*(\[.*?\])?\s*\{.*?\}/g, '');
     code = code.replace(/\\captionof\s*\{figure\}\s*\{.*?\}/g, '');
     code = code.replace(/,?\s+&\s+/g, ' and ');
     code = code.replace(/[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff\u3040-\u309f\u30a0-\u30ff\uac00-\ud7af]/g, '');
+    
     const environments = ['itemize', 'enumerate', 'description'];
     environments.forEach(env => {
         const beginRegex = new RegExp(`\\\\begin\\{${env}\\}`, 'g');
@@ -235,9 +240,11 @@ function postProcessLatex(latexCode: string): string {
             }
         }
     });
+    
     if (!code.includes('\\end{document}')) code += '\n\\end{document}';
     const docClassIdx = code.indexOf('\\documentclass');
     if (docClassIdx > 0) code = code.substring(docClassIdx);
+    
     return code;
 }
 
@@ -284,7 +291,6 @@ export async function generateInitialPaper(title: string, language: Language, pa
     const languageName = LANGUAGES.find(l => l.code === language)?.name || 'English';
     const babelLanguage = BABEL_LANG_MAP[language];
     const referenceCount = 10;
-    const semanticScholarPapers = await fetchSemanticScholarPapers(title, referenceCount);
     
     const latexAuthorsBlock = authorDetails.map(author => {
         const name = author.name || 'Unknown Author';
@@ -297,13 +303,12 @@ export async function generateInitialPaper(title: string, language: Language, pa
 
     const systemInstruction = `Act as a world-class LaTeX scientific paper generator. Write a complete, rigorous paper in **${languageName}**.
 
-**METADATA FORMATTING RULES (CRITICAL):**
+**METADATA FORMATTING RULES (STRICT):**
 1.  **Title**: Use exactly \`\\title{${title}}\`.
-2.  **Abstract**: Content inside \`\\begin{abstract}...\` must be high-quality summary.
-3.  **Keywords**: IMMEDIATELY after \`\\end{abstract}\`, use exactly \`\\keywords{key1, key2, key3}\`. DO NOT redefine the \\keywords command in the document.
-4.  **No Figures**: Do NOT use \`\\includegraphics\` or \`\\begin{figure}\`.
-5.  **Citations**: Generate ${referenceCount} academic citations. No \`\\bibitem\`.
-6.  **Template Compatibility**: Use ONLY the packages and structure provided in the template. DO NOT add new \`\\newcommand\` definitions that require parameters unless you follow the template.`;
+2.  **Keywords**: Use exactly \`\\keywords{key1, key2, key3}\`.
+3.  **PROHIBITION**: NEVER include \`\\newcommand{\\keywords}\` or \`\\renewcommand{\\keywords}\` in your response. This command is already defined in the system.
+4.  **PROHIBITION**: NEVER include preamble packages like \`\\usepackage\`. Only provide the content inside the template structure.
+5.  **Citations**: Generate ${referenceCount} academic citations. Use plain text paragraphs for references.`;
 
     let template = ARTICLE_TEMPLATE.replace('% Babel package will be added dynamically based on language', `\\usepackage[${babelLanguage}]{babel}`)
         .replace('[INSERT REFERENCE COUNT]', String(referenceCount))
