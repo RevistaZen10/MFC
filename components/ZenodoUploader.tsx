@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect, forwardRef, useImperativeHandle } from 'react';
 import type { ZenodoAuthor, ExtractedMetadata } from '../types';
 
@@ -23,9 +24,24 @@ const ZenodoUploader = forwardRef<ZenodoUploaderRef, ZenodoUploaderProps>(({
     extractedMetadata
 }, ref) => {
     const [useSandbox, setUseSandbox] = useState(true);
-    const [zenodoToken, setZenodoToken] = useState(''); 
+    const [zenodoToken, setZenodoToken] = useState(() => localStorage.getItem('zenodo_api_key') || ''); 
     const [publicationLog, setPublicationLog] = useState<string[]>([]);
     const logContainerRef = useRef<HTMLDivElement>(null);
+
+    // Sincronizar token local com localStorage quando o componente for montado ou o localStorage mudar
+    useEffect(() => {
+        const stored = localStorage.getItem('zenodo_api_key');
+        if (stored !== null && stored !== zenodoToken) {
+            setZenodoToken(stored);
+        }
+    }, []);
+
+    // Persistir token sempre que for alterado no campo
+    const handleTokenChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const val = e.target.value;
+        setZenodoToken(val);
+        localStorage.setItem('zenodo_api_key', val);
+    };
 
     useEffect(() => {
         if (logContainerRef.current) {
@@ -250,7 +266,7 @@ const ZenodoUploader = forwardRef<ZenodoUploaderRef, ZenodoUploaderProps>(({
                     id="zenodoToken" 
                     placeholder="Your Zenodo token" 
                     value={zenodoToken} 
-                    onChange={(e) => setZenodoToken(e.target.value)} 
+                    onChange={handleTokenChange} 
                     className="block w-full p-2 border rounded"
                     aria-required="true"
                     aria-label="Zenodo Access Token"

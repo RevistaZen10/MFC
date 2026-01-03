@@ -64,14 +64,24 @@ const App: React.FC = () => {
     }, [authors]);
 
     const handleSaveApiKeys = (keys: { gemini: string[], zenodo: string, xai: string }) => {
+        // Persistir no localStorage
+        localStorage.setItem('gemini_api_keys', JSON.stringify(keys.gemini));
+        
         if (keys.gemini.length > 0) {
-            localStorage.setItem('gemini_api_keys', JSON.stringify(keys.gemini));
-            // Também salva no formato de chave única para compatibilidade legada
             localStorage.setItem('gemini_api_key', keys.gemini[0]);
+        } else {
+            localStorage.removeItem('gemini_api_key');
         }
+        
         localStorage.setItem('zenodo_api_key', keys.zenodo);
         localStorage.setItem('xai_api_key', keys.xai);
+        
         setIsApiModalOpen(false);
+        // Recarregar a aba publisher se estiver nela para atualizar o token do Zenodo
+        if (activeTab === 'publisher') {
+            setActiveTab('generator');
+            setTimeout(() => setActiveTab('publisher'), 10);
+        }
     };
 
     // Extração Automática de Metadados do LaTeX com Debounce para Performance
