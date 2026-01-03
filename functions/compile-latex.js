@@ -42,16 +42,12 @@ export async function onRequestPost(context) {
         const contentType = texliveResponse.headers.get('content-type');
 
         if (!texliveResponse.ok || !contentType || !contentType.includes('application/pdf')) {
-            let errorLogText = await texliveResponse.text();
-            
-            // Limpar HTML se o retorno for uma página de erro
-            errorLogText = errorLogText.replace(/<[^>]*>?/gm, ''); // Remove tags HTML
-            
-            // Tentar encontrar o erro real do LaTeX (começa com !)
-            const errorMatch = errorLogText.match(/!(.*)/);
-            const cleanError = errorMatch ? errorMatch[0] : errorLogText.substring(0, 500);
+            const errorLogText = await texliveResponse.text();
+            console.error(`TeXLive.net compilation failed. Status: ${texliveResponse.status}.`);
 
-            const detailedError = `Compilation failed:\n${cleanError.trim()}`;
+            // The response might be a raw text log or HTML. Sending the whole thing is the most robust way
+            // to give the AI fixer the full context it needs, especially if the format changes.
+            const detailedError = `Compilation failed. Upstream response:\n${errorLogText}`;
             
             return new Response(JSON.stringify({ error: detailedError }), {
                 status: 400,
