@@ -8,8 +8,9 @@ export const ARTICLE_TEMPLATE = `\\documentclass[12pt,a4paper]{article}
 % Babel package will be added dynamically based on language
 \\usepackage[unicode=true]{hyperref}
 
-% Comandos customizados
-\\newcommand{\\keywords}[1]{\\par\\addvspace\\baselineskip\\noindent\\textbf{Keywords:}\\enspace#1}
+% Definição robusta de palavras-chave (keywords)
+% O comando aceita 1 argumento [1]
+\\providecommand{\\keywords}[1]{\\par\\addvspace\\baselineskip\\noindent\\textbf{Keywords:}\\enspace#1}
 
 \\hypersetup{
   pdftitle={[INSERT NEW TITLE HERE]},

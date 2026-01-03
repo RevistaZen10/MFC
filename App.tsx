@@ -19,8 +19,8 @@ const App: React.FC = () => {
 \\usepackage{amsmath, amssymb, geometry, setspace, url}
 \\usepackage[english]{babel}
 
-% Definição robusta de palavras-chave
-\\newcommand{\\keywords}[1]{\\vspace{0.5cm}\\noindent\\textbf{Keywords: } #1}
+% Comando robusto de palavras-chave
+\\providecommand{\\keywords}[1]{\\par\\addvspace{\\baselineskip}\\noindent\\textbf{Keywords:}\\enspace#1}
 
 \\title{Título do meu Artigo}
 \\author{Autor Exemplo}
@@ -110,12 +110,13 @@ Conteúdo aqui...
                 body: JSON.stringify({ latex: latexToCompile }),
             });
             
+            const result = await response.json();
+
             if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'Erro desconhecido na compilação.');
+                throw new Error(result.error || 'Erro desconhecido na compilação.');
             }
             
-            const base64 = await response.text();
+            const base64 = result.pdf || result; // Suporta retornos base64 diretos ou objetos
             const url = `data:application/pdf;base64,${base64}`;
             const blob = await (await fetch(url)).blob();
             const file = new File([blob], "artigo.pdf", { type: "application/pdf" });
@@ -123,7 +124,7 @@ Conteúdo aqui...
             setPdfFile(file);
         } catch (e: any) {
             console.error(e);
-            alert(`Erro na compilação:\n\n${e.message}\n\nVerifique se não há caracteres especiais sem escape (%, $, _) ou comandos mal definidos.`);
+            alert(`Erro na compilação:\n\n${e.message}\n\nPossíveis causas: Comandos duplicados, caracteres especiais (%, $, _, &) sem escape ou preâmbulo corrompido.`);
         } finally {
             setIsCompiling(false);
         }

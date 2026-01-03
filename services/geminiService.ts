@@ -214,7 +214,7 @@ export async function generatePaperTitle(topic: string, language: Language, mode
 function postProcessLatex(latexCode: string): string {
     let code = latexCode;
     
-    // REMOVER REDEFINIÇÕES DE COMANDOS QUE A IA TENTA INSERIR (Causador de erros)
+    // Limpeza de redefinições redundantes que causam erros de compilação
     code = code.replace(/\\(?:new|renew)command\{\\keywords\}(?:\[.*?\])?\{.*?\}/g, '');
     
     code = code.replace(/\\begin\{figure\*?\}([\s\S]*?)\\end\{figure\*?\}/g, '');
@@ -306,8 +306,8 @@ export async function generateInitialPaper(title: string, language: Language, pa
 **METADATA FORMATTING RULES (STRICT):**
 1.  **Title**: Use exactly \`\\title{${title}}\`.
 2.  **Keywords**: Use exactly \`\\keywords{key1, key2, key3}\`.
-3.  **PROHIBITION**: NEVER include \`\\newcommand{\\keywords}\` or \`\\renewcommand{\\keywords}\` in your response. This command is already defined in the system.
-4.  **PROHIBITION**: NEVER include preamble packages like \`\\usepackage\`. Only provide the content inside the template structure.
+3.  **PROHIBITION**: NEVER include \`\\newcommand{\\keywords}\` or \`\\renewcommand{\\keywords}\` in the document. This command is already provided by the system.
+4.  **PROHIBITION**: NEVER include the preamble (packages, documentclass). Provide ONLY the content between \\begin{document} and \\end{document}.
 5.  **Citations**: Generate ${referenceCount} academic citations. Use plain text paragraphs for references.`;
 
     let template = ARTICLE_TEMPLATE.replace('% Babel package will be added dynamically based on language', `\\usepackage[${babelLanguage}]{babel}`)
@@ -316,7 +316,7 @@ export async function generateInitialPaper(title: string, language: Language, pa
         .replace('__ALL_AUTHORS_LATEX_BLOCK__', latexAuthorsBlock)
         .replace('pdfauthor={__PDF_AUTHOR_NAMES_PLACEHOLDER__}', `pdfauthor={${pdfAuthorNames}}`);
 
-    const userPrompt = `Generate the paper for title: "${title}". Use the template below.
+    const userPrompt = `Generate the paper content for title: "${title}". Follow the template structure but DO NOT redefine system commands.
 \`\`\`latex
 ${template}
 \`\`\`

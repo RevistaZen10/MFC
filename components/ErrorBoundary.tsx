@@ -10,8 +10,8 @@ interface ErrorBoundaryState {
   errorInfo: ErrorInfo | null;
 }
 
-// FIX: Explicitly extending React.Component to ensure 'setState' and 'props' are correctly recognized by the TypeScript compiler.
-class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+// Fix: Extending the named 'Component' import directly to ensure 'setState' and 'props' are correctly recognized as inherited members by the TypeScript compiler.
+class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   public state: ErrorBoundaryState = {
     hasError: false,
     error: null,
@@ -25,7 +25,7 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error("Uncaught error:", error, errorInfo);
-    // FIX: Accessing setState from the base class.
+    // Fix: Accessing 'setState' from the base Component class.
     this.setState({
       error: error,
       errorInfo: errorInfo,
@@ -51,7 +51,7 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
       );
     }
 
-    // FIX: Accessing props.children from the base class.
+    // Fix: Accessing 'props' from the base Component class to return children correctly.
     return this.props.children;
   }
 }
