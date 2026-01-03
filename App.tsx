@@ -14,13 +14,6 @@ import ApiKeyModal from './components/ApiKeyModal';
 import ZenodoUploader, { type ZenodoUploaderRef } from './components/ZenodoUploader';
 import PersonalDataModal from './components/PersonalDataModal';
 
-
-
-
-
-
-
-
 const App: React.FC = () => {
     // Navegação entre módulos
     const [activeTab, setActiveTab] = useState<'generator' | 'publisher'>('generator');
