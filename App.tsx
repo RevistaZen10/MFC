@@ -1,39 +1,33 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { generateInitialPaper, analyzePaper, improvePaper, generatePaperTitle, fixLatexPaper } from './services/geminiService';
-import type { Language, IterationAnalysis, PaperSource, ArticleEntry, PersonalData } from './types';
-import { LANGUAGES, AVAILABLE_MODELS, getAllDisciplines, getRandomTopic, TOTAL_ITERATIONS } from './constants';
+import type { ArticleEntry, PersonalData } from './types';
 
-import LanguageSelector from './components/LanguageSelector';
-import ModelSelector from './components/ModelSelector';
-import ActionButton from './components/ActionButton';
-import ProgressBar from './components/ProgressBar';
-import SourceDisplay from './components/SourceDisplay';
 import LatexCompiler from './components/LatexCompiler';
 import ApiKeyModal from './components/ApiKeyModal';
 import ZenodoUploader, { type ZenodoUploaderRef } from './components/ZenodoUploader';
 import PersonalDataModal from './components/PersonalDataModal';
 
 const App: React.FC = () => {
-    // Navegação entre módulos
-    const [activeTab, setActiveTab] = useState<'generator' | 'publisher'>('generator');
-    
     // Modais e Configurações
     const [isApiModalOpen, setIsApiModalOpen] = useState(false);
     const [isPersonalDataModalOpen, setIsPersonalDataModalOpen] = useState(false);
 
-    // == ESTADO DO GERADOR (Módulo 1) ==
-    const [language, setLanguage] = useState<Language>('pt');
-    const [generationModel, setGenerationModel] = useState('gemini-2.5-flash');
-    const [selectedDiscipline, setSelectedDiscipline] = useState<string>(getAllDisciplines()[0]);
-    const [isGenerating, setIsGenerating] = useState(false);
-    const [genProgress, setGenProgress] = useState(0);
-    const [genStatus, setGenStatus] = useState('');
-    const [paperSources, setPaperSources] = useState<PaperSource[]>([]);
-    const [generatedLatex, setGeneratedLatex] = useState('');
-
-    // == ESTADO DO PUBLICADOR (Módulo 2) ==
-    const [latexToCompile, setLatexToCompile] = useState(`% Cole seu código LaTeX aqui...`);
+    // == ESTADO DO PUBLICADOR ==
+    const [latexToCompile, setLatexToCompile] = useState<string>(() => {
+        return localStorage.getItem('last_latex_session') || `% Comece seu artigo aqui...
+\\documentclass[12pt,a4paper]{article}
+\\usepackage[utf8]{inputenc}
+\\title{Título do meu Artigo}
+\\author{Autor Exemplo}
+\\begin{document}
+\\maketitle
+\\begin{abstract}
+Resumo do artigo aqui.
+\\end{abstract}
+\\section{Introdução}
+Conteúdo aqui...
+\\end{document}`;
+    });
     const [isCompiling, setIsCompiling] = useState(false);
     const [pdfUrl, setPdfUrl] = useState('');
     const [pdfFile, setPdfFile] = useState<File | null>(null);
@@ -63,73 +57,47 @@ const App: React.FC = () => {
         localStorage.setItem('all_authors_data', JSON.stringify(authors));
     }, [authors]);
 
+    // Persistir sessão de código
+    useEffect(() => {
+        localStorage.setItem('last_latex_session', latexToCompile);
+    }, [latexToCompile]);
+
     const handleSaveApiKeys = (keys: { gemini: string[], zenodo: string, xai: string }) => {
-        // Persistir no localStorage
         localStorage.setItem('gemini_api_keys', JSON.stringify(keys.gemini));
-        
         if (keys.gemini.length > 0) {
             localStorage.setItem('gemini_api_key', keys.gemini[0]);
         } else {
             localStorage.removeItem('gemini_api_key');
         }
-        
         localStorage.setItem('zenodo_api_key', keys.zenodo);
         localStorage.setItem('xai_api_key', keys.xai);
-        
         setIsApiModalOpen(false);
-        // Recarregar a aba publisher se estiver nela para atualizar o token do Zenodo
-        if (activeTab === 'publisher') {
-            setActiveTab('generator');
-            setTimeout(() => setActiveTab('publisher'), 10);
-        }
     };
 
-    // Extração Automática de Metadados do LaTeX com Debounce para Performance
     const syncMetadata = useCallback((code: string) => {
-        const title = code.match(/\\title\{(.*?)\}/)?.[1] || '';
-        const abstract = code.match(/\\begin\{abstract\}([\s\S]*?)\\end\{abstract\}/)?.[1]?.trim() || '';
-        const keywords = code.match(/\\keywords\{(.*?)\}/)?.[1] || '';
-        setMetadata({ title, abstract, keywords, authors });
+        const titleMatch = code.match(/\\title\{(.*?)\}/);
+        const abstractMatch = code.match(/\\begin\{abstract\}([\s\S]*?)\\end\{abstract\}/);
+        const keywordsMatch = code.match(/\\keywords\{(.*?)\}/);
+        
+        setMetadata({
+            title: titleMatch ? titleMatch[1] : '',
+            abstract: abstractMatch ? abstractMatch[1].trim() : '',
+            keywords: keywordsMatch ? keywordsMatch[1] : '',
+            authors
+        });
     }, [authors]);
 
-    // Ao mudar o código manualmente, limpa o PDF anterior para evitar confusão
+    // Sincronizar metadados no carregamento inicial
+    useEffect(() => {
+        syncMetadata(latexToCompile);
+    }, [authors]);
+
     const handleCodeChange = (newCode: string) => {
         setLatexToCompile(newCode);
         setPdfUrl('');
         setPdfFile(null);
         setZenodoStatus(null);
-        // Debounce simples para syncMetadata
-        const timer = setTimeout(() => syncMetadata(newCode), 500);
-        return () => clearTimeout(timer);
-    };
-
-    const handleGenerate = async () => {
-        setIsGenerating(true);
-        setGenProgress(0);
-        try {
-            setGenStatus('Definindo título impactante...');
-            const topic = getRandomTopic(selectedDiscipline);
-            const title = await generatePaperTitle(topic, language, generationModel, selectedDiscipline);
-            setGenProgress(20);
-
-            setGenStatus('Pesquisando fontes e gerando rascunho...');
-            const { paper, sources } = await generateInitialPaper(title, language, 10, generationModel, authors);
-            setPaperSources(sources);
-            let currentPaper = paper;
-            setGenProgress(50);
-
-            setGenStatus('Refinando qualidade acadêmica (Iteração única)...');
-            const analysis = await analyzePaper(currentPaper, 10, generationModel);
-            currentPaper = await improvePaper(currentPaper, analysis, language, generationModel);
-            
-            setGeneratedLatex(currentPaper);
-            setGenProgress(100);
-            setGenStatus('✅ LaTeX Gerado com Sucesso!');
-        } catch (e) {
-            setGenStatus(`❌ Erro: ${e instanceof Error ? e.message : 'Falha na geração'}`);
-        } finally {
-            setIsGenerating(false);
-        }
+        syncMetadata(newCode);
     };
 
     const handleCompile = async () => {
@@ -151,7 +119,7 @@ const App: React.FC = () => {
             setPdfUrl(url);
             setPdfFile(file);
         } catch (e) {
-            alert('Erro ao compilar PDF. Verifique a sintaxe LaTeX.');
+            alert('Erro ao compilar PDF. Verifique a sintaxe LaTeX no editor.');
         } finally {
             setIsCompiling(false);
         }
@@ -162,190 +130,141 @@ const App: React.FC = () => {
             <ApiKeyModal isOpen={isApiModalOpen} onClose={() => setIsApiModalOpen(false)} onSave={handleSaveApiKeys} />
             <PersonalDataModal isOpen={isPersonalDataModalOpen} onClose={() => setIsPersonalDataModalOpen(false)} onSave={(d) => { setAuthors(d); setIsPersonalDataModalOpen(false); }} initialData={authors} />
 
-            <header className="bg-white border-b border-slate-200 sticky top-0 z-10">
+            <header className="bg-white border-b border-slate-200 sticky top-0 z-10 shadow-sm">
                 <div className="container mx-auto px-6 py-4 flex justify-between items-center">
                     <div>
-                        <h1 className="text-2xl font-black tracking-tight text-indigo-600">SCIENTIFIC GEN 2.0</h1>
-                        <p className="text-xs text-slate-500 font-medium">IA → LaTeX → PDF → ZENODO</p>
+                        <h1 className="text-2xl font-black tracking-tight text-indigo-600 uppercase">Scientific Publish</h1>
+                        <p className="text-xs text-slate-500 font-medium">EDITOR LATEX + COMPILADOR + ZENODO</p>
                     </div>
-                    <div className="flex items-center gap-3">
-                        <button onClick={() => setIsPersonalDataModalOpen(true)} className="p-2 hover:bg-slate-100 rounded-lg transition-colors text-slate-600" title="Dados do Autor"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg></button>
-                        <button onClick={() => setIsApiModalOpen(true)} className="p-2 hover:bg-slate-100 rounded-lg transition-colors text-slate-600" title="Configurações"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg></button>
+                    <div className="flex items-center gap-4">
+                        <button 
+                            onClick={() => setIsPersonalDataModalOpen(true)} 
+                            className="flex items-center gap-2 px-3 py-2 bg-slate-50 hover:bg-slate-100 rounded-lg transition-all text-slate-600 border border-slate-200"
+                        >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+                            <span className="text-sm font-bold hidden sm:inline">Autores</span>
+                        </button>
+                        <button 
+                            onClick={() => setIsApiModalOpen(true)} 
+                            className="flex items-center gap-2 px-3 py-2 bg-slate-50 hover:bg-slate-100 rounded-lg transition-all text-slate-600 border border-slate-200"
+                        >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                            <span className="text-sm font-bold hidden sm:inline">APIs</span>
+                        </button>
                     </div>
                 </div>
             </header>
 
             <main className="container mx-auto px-6 py-8">
-                {/* Tabs de Navegação */}
-                <div className="flex bg-white rounded-xl p-1 shadow-sm border border-slate-200 mb-8 max-w-2xl mx-auto">
-                    <button 
-                        onClick={() => setActiveTab('generator')}
-                        className={`flex-1 py-3 px-4 rounded-lg font-bold text-sm transition-all ${activeTab === 'generator' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-500 hover:text-indigo-600'}`}
-                    >
-                        1. GERADOR DE LATEX
-                    </button>
-                    <button 
-                        onClick={() => {
-                            setActiveTab('publisher');
-                            syncMetadata(latexToCompile);
-                        }}
-                        className={`flex-1 py-3 px-4 rounded-lg font-bold text-sm transition-all ${activeTab === 'publisher' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-500 hover:text-indigo-600'}`}
-                    >
-                        2. COMPILADOR & ZENODO
-                    </button>
-                </div>
-
-                {activeTab === 'generator' ? (
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-fadeIn">
-                        {/* Configurações de Geração */}
-                        <div className="bg-white p-8 rounded-2xl shadow-xl border border-slate-100">
+                <div className="space-y-8 animate-fadeIn">
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                        {/* Editor e Compilador */}
+                        <div className="lg:col-span-2 bg-white p-8 rounded-2xl shadow-xl border border-slate-100">
                             <h2 className="text-xl font-bold mb-6 flex items-center gap-2 text-indigo-700">
-                                <span className="bg-indigo-50 p-2 rounded-lg">⚙️</span> Geração por IA
+                                <span className="bg-indigo-50 p-2 rounded-lg">🖋️</span> Editor de LaTeX Profissional
                             </h2>
-                            <div className="space-y-6">
-                                <LanguageSelector languages={LANGUAGES} selectedLanguage={language} onSelect={setLanguage} />
-                                <ModelSelector models={AVAILABLE_MODELS} selectedModel={generationModel} onSelect={setGenerationModel} label="Motor de IA:" />
-                                <div>
-                                    <label className="block text-sm font-bold text-slate-700 mb-2">Área do Conhecimento:</label>
-                                    <select value={selectedDiscipline} onChange={(e) => setSelectedDiscipline(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 transition-all">
-                                        {getAllDisciplines().map(d => <option key={d} value={d}>{d}</option>)}
-                                    </select>
-                                </div>
-                                <ActionButton onClick={handleGenerate} disabled={isGenerating} isLoading={isGenerating} text="Gerar Código LaTeX" loadingText="Pesquisando e Escrevendo..." />
+                            <LatexCompiler code={latexToCompile} onCodeChange={handleCodeChange} />
+                            
+                            <div className="mt-6 flex flex-wrap gap-4">
+                                <button 
+                                    onClick={handleCompile} 
+                                    disabled={isCompiling}
+                                    className="flex-1 min-w-[200px] py-4 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-all shadow-md active:scale-95 disabled:opacity-50"
+                                >
+                                    {isCompiling ? 'Compilando...' : '⚙️ Compilar para PDF'}
+                                </button>
+                                <button 
+                                    onClick={() => uploaderRef.current?.submit()} 
+                                    disabled={!pdfFile || uploadingToZenodo}
+                                    className="flex-1 min-w-[200px] py-4 bg-green-500 text-white font-bold rounded-xl hover:bg-green-600 transition-all shadow-md active:scale-95 disabled:opacity-50"
+                                >
+                                    {uploadingToZenodo ? 'Publicando...' : '🚀 Publicar no Zenodo'}
+                                </button>
                             </div>
-                        </div>
 
-                        {/* Resultado do Gerador */}
-                        <div className="bg-white p-8 rounded-2xl shadow-xl border border-slate-100 flex flex-col">
-                            <h2 className="text-xl font-bold mb-6 text-indigo-700">Status & LaTeX</h2>
-                            {isGenerating ? (
-                                <div className="space-y-6 my-auto text-center">
-                                    <ProgressBar progress={genProgress} isVisible={true} />
-                                    <p className="text-indigo-600 font-bold animate-pulse">{genStatus}</p>
-                                    <SourceDisplay sources={paperSources} />
-                                </div>
-                            ) : generatedLatex ? (
-                                <div className="flex-1 flex flex-col space-y-4">
-                                    <div className="bg-slate-900 text-slate-300 p-4 rounded-xl font-mono text-xs overflow-auto max-h-[400px] border border-slate-800">
-                                        <pre>{generatedLatex}</pre>
+                            {pdfUrl && (
+                                <div className="mt-8 border-t pt-8 animate-fadeIn">
+                                    <h3 className="font-bold text-slate-700 mb-4 flex items-center gap-2">
+                                        <svg className="w-5 h-5 text-red-500" fill="currentColor" viewBox="0 0 20 20"><path d="M10 18a8 8 0 100-16 8 8 0 000 16zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9H7v2h2V9zm4 0h-2v2h2V9z"/></svg>
+                                        Pré-visualização do PDF
+                                    </h3>
+                                    <div className="h-[600px] w-full bg-slate-100 rounded-xl overflow-hidden border border-slate-200">
+                                        <iframe src={pdfUrl} className="w-full h-full" title="PDF Preview" />
                                     </div>
-                                    <button 
-                                        onClick={() => {
-                                            setLatexToCompile(generatedLatex);
-                                            syncMetadata(generatedLatex);
-                                            setActiveTab('publisher');
-                                        }}
-                                        className="w-full py-4 bg-green-500 text-white font-black rounded-xl hover:bg-green-600 shadow-lg transform active:scale-95 transition-all"
-                                    >
-                                        COPIAR PARA O COMPILADOR →
-                                    </button>
-                                </div>
-                            ) : (
-                                <div className="my-auto text-center py-20 opacity-30">
-                                    <svg className="w-20 h-20 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
-                                    <p className="font-medium">O LaTeX gerado aparecerá aqui.</p>
                                 </div>
                             )}
                         </div>
-                    </div>
-                ) : (
-                    <div className="space-y-8 animate-fadeIn">
-                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                            {/* Editor e Compilador */}
-                            <div className="lg:col-span-2 bg-white p-8 rounded-2xl shadow-xl border border-slate-100">
-                                <h2 className="text-xl font-bold mb-6 flex items-center gap-2 text-indigo-700">
-                                    <span className="bg-indigo-50 p-2 rounded-lg">🖋️</span> Editor de LaTeX
-                                </h2>
-                                <LatexCompiler code={latexToCompile} onCodeChange={handleCodeChange} />
-                                
-                                <div className="mt-6 flex gap-4">
-                                    <button 
-                                        onClick={handleCompile} 
-                                        disabled={isCompiling}
-                                        className="flex-1 py-4 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-all shadow-md"
-                                    >
-                                        {isCompiling ? 'Compilando...' : '⚙️ Compilar para PDF'}
-                                    </button>
-                                    <button 
-                                        onClick={() => uploaderRef.current?.submit()} 
-                                        disabled={!pdfFile || uploadingToZenodo}
-                                        className="flex-1 py-4 bg-green-500 text-white font-bold rounded-xl hover:bg-green-600 transition-all shadow-md disabled:opacity-50"
-                                    >
-                                        {uploadingToZenodo ? 'Publicando...' : '🚀 Publicar no Zenodo'}
-                                    </button>
-                                </div>
 
-                                {pdfUrl && (
-                                    <div className="mt-8 border-t pt-8">
-                                        <h3 className="font-bold text-slate-700 mb-4 flex items-center gap-2">
-                                            <svg className="w-5 h-5 text-red-500" fill="currentColor" viewBox="0 0 20 20"><path d="M10 18a8 8 0 100-16 8 8 0 000 16zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9H7v2h2V9zm4 0h-2v2h2V9z"/></svg>
-                                            Visualização do PDF Compilado
-                                        </h3>
-                                        <div className="h-[500px] w-full bg-slate-100 rounded-xl overflow-hidden border border-slate-200">
-                                            <iframe src={pdfUrl} className="w-full h-full" title="PDF Preview" />
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Detalhes Zenodo */}
-                            <div className="bg-white p-8 rounded-2xl shadow-xl border border-slate-100 border-l-4 border-l-green-500 h-fit sticky top-28">
-                                <h2 className="text-xl font-bold mb-6 text-green-700">Metadados Zenodo</h2>
-                                <ZenodoUploader 
-                                    ref={uploaderRef}
-                                    title={metadata.title}
-                                    abstractText={metadata.abstract}
-                                    keywords={metadata.keywords}
-                                    authors={metadata.authors}
-                                    compiledPdfFile={pdfFile}
-                                    onFileSelect={() => {}}
-                                    onPublishStart={() => setUploadingToZenodo(true)}
-                                    onPublishSuccess={(res) => {
-                                        setUploadingToZenodo(false);
-                                        setZenodoStatus(<div className="p-4 bg-green-50 text-green-700 font-bold rounded-xl border border-green-200 mt-4 text-center">✅ Publicado! DOI: {res.doi}</div>);
-                                        setHistory(prev => [{ id: crypto.randomUUID(), title: metadata.title, date: new Date().toISOString(), status: 'published', link: res.zenodoLink, doi: res.doi }, ...prev]);
-                                    }}
-                                    onPublishError={(msg) => { setUploadingToZenodo(false); setZenodoStatus(<div className="p-4 bg-red-50 text-red-700 font-bold rounded-xl border border-red-200 mt-4 text-center">❌ {msg}</div>); }}
-                                    extractedMetadata={metadata}
-                                />
-                                {zenodoStatus}
-                            </div>
+                        {/* Detalhes Zenodo */}
+                        <div className="bg-white p-8 rounded-2xl shadow-xl border border-slate-100 border-l-4 border-l-green-500 h-fit sticky top-28">
+                            <h2 className="text-xl font-bold mb-6 text-green-700">Metadados para Publicação</h2>
+                            <ZenodoUploader 
+                                ref={uploaderRef}
+                                title={metadata.title}
+                                abstractText={metadata.abstract}
+                                keywords={metadata.keywords}
+                                authors={metadata.authors}
+                                compiledPdfFile={pdfFile}
+                                onFileSelect={() => {}}
+                                onPublishStart={() => setUploadingToZenodo(true)}
+                                onPublishSuccess={(res) => {
+                                    setUploadingToZenodo(false);
+                                    setZenodoStatus(<div className="p-4 bg-green-50 text-green-700 font-bold rounded-xl border border-green-200 mt-4 text-center">✅ Publicado com Sucesso!<br/><span className="text-xs font-normal">DOI: {res.doi}</span></div>);
+                                    setHistory(prev => [{ id: crypto.randomUUID(), title: metadata.title, date: new Date().toISOString(), status: 'published', link: res.zenodoLink, doi: res.doi }, ...prev]);
+                                }}
+                                onPublishError={(msg) => { 
+                                    setUploadingToZenodo(false); 
+                                    setZenodoStatus(<div className="p-4 bg-red-50 text-red-700 font-bold rounded-xl border border-red-200 mt-4 text-center">❌ Erro na Publicação:<br/><span className="text-xs font-normal">{msg}</span></div>); 
+                                }}
+                                extractedMetadata={metadata}
+                            />
+                            {zenodoStatus}
                         </div>
+                    </div>
 
-                        {/* Histórico Global */}
-                        <div className="bg-white p-8 rounded-2xl shadow-xl border border-slate-100">
-                            <div className="flex justify-between items-center mb-6">
-                                <h2 className="text-xl font-bold text-slate-800">📚 Meus Artigos Publicados</h2>
-                                <button onClick={() => setHistory([])} className="text-xs text-red-400 font-bold hover:underline">LIMPAR LOGS</button>
-                            </div>
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-left">
-                                    <thead className="bg-slate-50 text-slate-400 text-[10px] uppercase font-black">
-                                        <tr>
-                                            <th className="px-6 py-3">Título do Artigo</th>
-                                            <th className="px-6 py-3">Data</th>
-                                            <th className="px-6 py-3">DOI / Link</th>
+                    {/* Histórico Global */}
+                    <div className="bg-white p-8 rounded-2xl shadow-xl border border-slate-100">
+                        <div className="flex justify-between items-center mb-6">
+                            <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                                <span className="bg-slate-50 p-2 rounded-lg">📚</span> Histórico de Publicações
+                            </h2>
+                            <button 
+                                onClick={() => { if(confirm('Limpar todo o histórico?')) setHistory([]); }} 
+                                className="text-xs text-red-400 font-bold hover:text-red-600 transition-colors uppercase tracking-wider"
+                            >
+                                Limpar Tudo
+                            </button>
+                        </div>
+                        <div className="overflow-x-auto rounded-xl border border-slate-50">
+                            <table className="w-full text-left">
+                                <thead className="bg-slate-50 text-slate-400 text-[10px] uppercase font-black">
+                                    <tr>
+                                        <th className="px-6 py-4">Título do Artigo</th>
+                                        <th className="px-6 py-4">Data de Registro</th>
+                                        <th className="px-6 py-4">DOI / Link Externo</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-50 text-sm">
+                                    {history.map(item => (
+                                        <tr key={item.id} className="hover:bg-slate-50/50 transition-colors">
+                                            <td className="px-6 py-4 font-bold text-slate-700">{item.title}</td>
+                                            <td className="px-6 py-4 text-slate-400">{new Date(item.date).toLocaleDateString()}</td>
+                                            <td className="px-6 py-4">
+                                                <a href={item.link} target="_blank" rel="noopener noreferrer" className="text-indigo-600 font-bold hover:underline flex items-center gap-1">
+                                                    {item.doi || 'Ver Depósito'}
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                                                </a>
+                                            </td>
                                         </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-50 text-sm">
-                                        {history.map(item => (
-                                            <tr key={item.id} className="hover:bg-slate-50 transition-colors">
-                                                <td className="px-6 py-4 font-bold text-slate-700">{item.title}</td>
-                                                <td className="px-6 py-4 text-slate-400">{new Date(item.date).toLocaleDateString()}</td>
-                                                <td className="px-6 py-4">
-                                                    <a href={item.link} target="_blank" className="text-indigo-600 font-bold hover:underline">{item.doi || 'Ver Artigo'}</a>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                        {history.length === 0 && (
-                                            <tr><td colSpan={3} className="text-center py-10 text-slate-300 italic">Nenhum artigo publicado ainda.</td></tr>
-                                        )}
-                                    </tbody>
-                                </table>
-                            </div>
+                                    ))}
+                                    {history.length === 0 && (
+                                        <tr><td colSpan={3} className="text-center py-16 text-slate-300 italic">Nenhum registro encontrado. Suas publicações aparecerão aqui.</td></tr>
+                                    )}
+                                </tbody>
+                            </table>
                         </div>
                     </div>
-                )}
+                </div>
             </main>
         </div>
     );
