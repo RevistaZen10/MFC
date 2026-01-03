@@ -23,6 +23,12 @@ export const ARTICLE_TEMPLATE = `\\documentclass[12pt,a4paper]{article}
   __ALL_AUTHORS_LATEX_BLOCK__
 }
 
+
+
+
+
+
+
 \\date{}
 
 \\begin{document}

@@ -21,22 +21,6 @@ import PersonalDataModal from './components/PersonalDataModal';
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 const App: React.FC = () => {
     // Navegação entre módulos
     const [activeTab, setActiveTab] = useState<'generator' | 'publisher'>('generator');

@@ -10,6 +10,23 @@ const BABEL_LANG_MAP: Record<Language, string> = {
     fr: 'french',
 };
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 // Internal Key Manager to track rotation state
 const KeyManager = {
     keys: [] as string[],
