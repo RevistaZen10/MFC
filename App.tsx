@@ -1,27 +1,23 @@
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import type { ArticleEntry, PersonalData } from './types';
 
 import LatexCompiler from './components/LatexCompiler';
+import ApiKeyModal from './components/ApiKeyModal';
 import ZenodoUploader, { type ZenodoUploaderRef } from './components/ZenodoUploader';
 import PersonalDataModal from './components/PersonalDataModal';
 
 const App: React.FC = () => {
+    const [isApiModalOpen, setIsApiModalOpen] = useState(false);
     const [isPersonalDataModalOpen, setIsPersonalDataModalOpen] = useState(false);
 
     const [latexToCompile, setLatexToCompile] = useState<string>(() => {
         return localStorage.getItem('last_latex_session') || `% Comece seu artigo aqui...
 \\documentclass[12pt,a4paper]{article}
 \\usepackage[utf8]{inputenc}
-\\usepackage[T1]{fontenc}
-\\usepackage{amsmath, amssymb, geometry, setspace, url}
-\\usepackage[english]{babel}
-
-% Comando robusto de palavras-chave
-\\providecommand{\\keywords}[1]{\\par\\addvspace{\\baselineskip}\\noindent\\textbf{Keywords:}\\enspace#1}
-
+\\newcommand{\\keywords}[1]{\\vspace{0.5cm}\\noindent\\textbf{Keywords: } #1}
 \\title{Título do meu Artigo}
 \\author{Autor Exemplo}
-
 \\begin{document}
 \\maketitle
 \\begin{abstract}
@@ -63,9 +59,21 @@ Conteúdo aqui...
         localStorage.setItem('last_latex_session', latexToCompile);
     }, [latexToCompile]);
 
+    const handleSaveApiKeys = (keys: { gemini: string[], zenodo: string, xai: string }) => {
+        localStorage.setItem('gemini_api_keys', JSON.stringify(keys.gemini));
+        if (keys.gemini.length > 0) {
+            localStorage.setItem('gemini_api_key', keys.gemini[0]);
+        }
+        localStorage.setItem('zenodo_api_key', keys.zenodo);
+        localStorage.setItem('xai_api_key', keys.xai);
+        setIsApiModalOpen(false);
+    };
+
     const syncMetadata = useCallback((code: string) => {
         const titleMatch = code.match(/\\title\{(.*?)\}/);
         const abstractMatch = code.match(/\\begin\{abstract\}([\s\S]*?)\\end\{abstract\}/);
+        
+        // Tenta capturar do comando \keywords{...} ou do texto Keywords: ...
         const keywordsMatch = code.match(/\\keywords\{(.*?)\}/) || code.match(/Keywords:\s*(.*)/i);
         
         setMetadata({
@@ -96,22 +104,15 @@ Conteúdo aqui...
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ latex: latexToCompile }),
             });
-            
-            const result = await response.json();
-
-            if (!response.ok) {
-                throw new Error(result.error || 'Erro desconhecido na compilação.');
-            }
-            
-            const base64 = result.pdf || result; // Suporta retornos base64 diretos ou objetos
+            if (!response.ok) throw new Error('Falha na compilação.');
+            const base64 = await response.text();
             const url = `data:application/pdf;base64,${base64}`;
             const blob = await (await fetch(url)).blob();
             const file = new File([blob], "artigo.pdf", { type: "application/pdf" });
             setPdfUrl(url);
             setPdfFile(file);
-        } catch (e: any) {
-            console.error(e);
-            alert(`Erro na compilação:\n\n${e.message}\n\nPossíveis causas: Comandos duplicados, caracteres especiais (%, $, _, &) sem escape ou preâmbulo corrompido.`);
+        } catch (e) {
+            alert('Erro ao compilar PDF. Verifique a sintaxe LaTeX no editor.');
         } finally {
             setIsCompiling(false);
         }
@@ -119,6 +120,7 @@ Conteúdo aqui...
 
     return (
         <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
+            <ApiKeyModal isOpen={isApiModalOpen} onClose={() => setIsApiModalOpen(false)} onSave={handleSaveApiKeys} />
             <PersonalDataModal isOpen={isPersonalDataModalOpen} onClose={() => setIsPersonalDataModalOpen(false)} onSave={(d) => { setAuthors(d); setIsPersonalDataModalOpen(false); }} initialData={authors} />
 
             <header className="bg-white border-b border-slate-200 sticky top-0 z-10 shadow-sm">
@@ -131,6 +133,10 @@ Conteúdo aqui...
                         <button onClick={() => setIsPersonalDataModalOpen(true)} className="flex items-center gap-2 px-3 py-2 bg-slate-50 hover:bg-slate-100 rounded-lg transition-all text-slate-600 border border-slate-200">
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
                             <span className="text-sm font-bold hidden sm:inline">Autores</span>
+                        </button>
+                        <button onClick={() => setIsApiModalOpen(true)} className="flex items-center gap-2 px-3 py-2 bg-slate-50 hover:bg-slate-100 rounded-lg transition-all text-slate-600 border border-slate-200">
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                            <span className="text-sm font-bold hidden sm:inline">APIs</span>
                         </button>
                     </div>
                 </div>
