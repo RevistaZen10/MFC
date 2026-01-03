@@ -8,12 +8,9 @@ export const LANGUAGES: LanguageOption[] = [
 ];
 
 export const AVAILABLE_MODELS: {name: string, description: string}[] = [
-    { name: 'gemini-2.5-flash', description: 'Fast and efficient for most tasks.' },
-    { name: 'gemini-2.5-pro', description: 'More powerful for complex generation and reasoning.' },
-    { name: 'gemini-3-pro-preview', description: 'Next-gen model for advanced reasoning and STEM tasks.' },
-    { name: 'grok-4-latest', description: 'Powerful model from x.ai.' },
-    { name: 'gemini-2.0-flash', description: 'High-throughput model with a large context window.' },
-    { name: 'gemini-2.0-flash-lite', description: 'Lightweight and very fast for high-volume tasks.' },
+    { name: 'gemini-3-flash-preview', description: 'Fast and efficient for basic text tasks (Google Recommend)' },
+    { name: 'gemini-3-pro-preview', description: 'Powerful for complex reasoning and scientific papers (Google Recommend)' },
+    { name: 'gemini-flash-lite-latest', description: 'Lightweight and extremely fast for high-volume tasks.' },
 ];
 
 export const STYLE_GUIDES: StyleGuideOption[] = [

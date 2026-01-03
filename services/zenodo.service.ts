@@ -1,4 +1,3 @@
-
 // Fix: Import Buffer to resolve Node.js-specific type errors.
 import { Buffer } from 'buffer';
 import fs from 'fs';
@@ -71,18 +70,11 @@ export async function uploadToZenodo(pdfPath: string, title: string, token: stri
             upload_type: 'publication',
             publication_type: 'article',
             description: `This scientific article, titled "${title}", was automatically generated and refined using an advanced AI system based on Google's Gemini models.`,
-            creators: [
-                {
-                    name: 'Revista, Zen',
-                    affiliation: '',
-                    orcid: '0009-0007-6299-2008'
-                },
-                {
-                    name: 'MATH, 10',
-                    affiliation: '',
-                    orcid: '0009-0007-6299-2008'
-                }
-            ]
+            creators: [{
+                name: 'DE ANDRADE, PAULO SÉRGIO',
+                affiliation: 'Faculdade de Guarulhos (FG)',
+                orcid: '0009-0004-2555-3178'
+            }]
         }
     };
     const deposition = await apiRequest<ZenodoDeposition>(
