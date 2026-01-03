@@ -1,5 +1,4 @@
-
-// services/zenodo.service.ts
+// Fix: Import Buffer to resolve Node.js-specific type errors.
 import { Buffer } from 'buffer';
 import fs from 'fs';
 import path from 'path';
@@ -20,6 +19,7 @@ interface ZenodoDeposition {
     }
 }
 
+// FIX: Changed body type from `object | Buffer` to `string | Buffer` to correctly handle stringified JSON and file buffers.
 async function apiRequest<T>(url: string, method: string, token: string, body?: string | Buffer, headers?: Record<string, string>): Promise<T> {
     const options: https.RequestOptions = {
         method,
@@ -32,40 +32,49 @@ async function apiRequest<T>(url: string, method: string, token: string, body?: 
     return new Promise((resolve, reject) => {
         const req = https.request(url, options, (res) => {
             let data = '';
-            res.on('data', (chunk) => { data += chunk; });
+            res.on('data', (chunk) => {
+                data += chunk;
+            });
             res.on('end', () => {
                 if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
-                    try { resolve(JSON.parse(data)); } catch (e) { resolve(data as any); }
+                    try {
+                        resolve(JSON.parse(data));
+                    } catch (e) {
+                        resolve(data as any); // Handle non-json responses like 204 No Content
+                    }
                 } else {
-                    reject(new Error(`API failed with status ${res.statusCode}: ${data}`));
+                    reject(new Error(`API request failed with status ${res.statusCode}: ${data}`));
                 }
             });
         });
-        req.on('error', (e) => reject(e));
-        if (body) req.write(body);
+
+        req.on('error', (e) => {
+            reject(e);
+        });
+
+        if (body) {
+            req.write(body);
+        }
+
         req.end();
     });
 }
 
+
 export async function uploadToZenodo(pdfPath: string, title: string, token: string): Promise<string> {
+    // Step 1: Create a new deposition
+    console.log('[INFO] [Zenodo] Creating new deposition...');
     const depositionData = {
         metadata: {
             title: title,
             upload_type: 'publication',
             publication_type: 'article',
-            description: `This scientific article was automatically generated and refined using an advanced AI system.`,
-            creators: [
-                {
-                    name: 'Revista, Zen',
-                    affiliation: 'Editorial Center',
-                    orcid: '0009-0007-6299-2008'
-                },
-                {
-                    name: 'MATH, 10',
-                    affiliation: 'Scientific Department',
-                    orcid: '0009-0007-6299-2008'
-                }
-            ]
+            description: `This scientific article, titled "${title}", was automatically generated and refined using an advanced AI system based on Google's Gemini models.`,
+            creators: [{
+                name: 'DE ANDRADE, PAULO SÉRGIO',
+                affiliation: 'Faculdade de Guarulhos (FG)',
+                orcid: '0009-0004-2555-3178'
+            }]
         }
     };
     const deposition = await apiRequest<ZenodoDeposition>(
@@ -75,7 +84,10 @@ export async function uploadToZenodo(pdfPath: string, title: string, token: stri
         JSON.stringify(depositionData),
         { 'Content-Type': 'application/json' }
     );
+    console.log(`[SUCCESS] [Zenodo] Deposition created with ID: ${deposition.id}`);
 
+    // Step 2: Upload the file to the deposition's bucket URL
+    console.log('[INFO] [Zenodo] Uploading PDF file...');
     const fileName = path.basename(pdfPath);
     const bucketUrl = deposition.links.bucket;
     const fileStream = fs.readFileSync(pdfPath);
@@ -90,12 +102,16 @@ export async function uploadToZenodo(pdfPath: string, title: string, token: stri
             'Content-Length': Buffer.byteLength(fileStream).toString()
         }
     );
+    console.log('[SUCCESS] [Zenodo] PDF file uploaded.');
 
+    // Step 3: Publish the deposition
+    console.log('[INFO] [Zenodo] Publishing deposition...');
     await apiRequest(
         `${ZENODO_API_URL}/${deposition.id}/actions/publish`,
         'POST',
         token
     );
+    console.log('[SUCCESS] [Zenodo] Deposition published.');
 
     return deposition.links.latest_draft_html;
 }

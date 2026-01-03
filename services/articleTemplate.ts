@@ -8,9 +8,6 @@ export const ARTICLE_TEMPLATE = `\\documentclass[12pt,a4paper]{article}
 % Babel package will be added dynamically based on language
 \\usepackage[unicode=true]{hyperref}
 
-% Definição robusta de palavras-chave
-\\providecommand{\\keywords}[1]{\\par\\addvspace\\baselineskip\\noindent\\textbf{Keywords:}\\enspace#1}
-
 \\hypersetup{
   pdftitle={[INSERT NEW TITLE HERE]},
   pdfauthor={__PDF_AUTHOR_NAMES_PLACEHOLDER__},
@@ -36,7 +33,9 @@ export const ARTICLE_TEMPLATE = `\\documentclass[12pt,a4paper]{article}
 [INSERT NEW COMPLETE ABSTRACT HERE. This must be plain text without LaTeX commands.]
 \\end{abstract}
 
-\\keywords{[INSERT COMMA-SEPARATED KEYWORDS HERE]}
+\\vspace{1cm}
+
+\\noindent \\textbf{Keywords:} [INSERT COMMA-SEPARATED KEYWORDS HERE]
 
 \\onehalfspacing
 
@@ -59,6 +58,10 @@ export const ARTICLE_TEMPLATE = `\\documentclass[12pt,a4paper]{article}
 [INSERT NEW CONTENT FOR CONCLUSION SECTION HERE. The content must be extensive and detailed to meet the required page count.]
 
 \\section{Referências}
+% The AI service will dynamically replace the placeholder below with [INSERT REFERENCE COUNT]
+% individual placeholders, one for each reference, separated by blank lines.
+% Each reference must be a plain paragraph starting with \\noindent and ending with \\par.
+% CRITICAL: Absolutely DO NOT use \\begin{thebibliography} or \\bibitem.
 [INSERT NEW REFERENCE LIST HERE]
 
 \\end{document}`;
