@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect, forwardRef, useImperativeHandle } from 'react';
 import type { ZenodoAuthor, ExtractedMetadata } from '../types';
 
@@ -24,9 +23,8 @@ const ZenodoUploader = forwardRef<ZenodoUploaderRef, ZenodoUploaderProps>(({
     extractedMetadata
 }, ref) => {
     const [useSandbox, setUseSandbox] = useState(true);
-    const [zenodoToken, setZenodoToken] = useState(() => localStorage.getItem('zenodo_api_key') || ''); 
+    const [zenodoToken, setZenodoToken] = useState(''); 
     const [publicationLog, setPublicationLog] = useState<string[]>([]);
-    const [isTokenSaved, setIsTokenSaved] = useState(false);
     const logContainerRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -34,19 +32,6 @@ const ZenodoUploader = forwardRef<ZenodoUploaderRef, ZenodoUploaderProps>(({
             logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight;
         }
     }, [publicationLog]);
-
-    const handleTokenChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const newToken = e.target.value;
-        setZenodoToken(newToken);
-        setIsTokenSaved(false);
-        // Auto-save removed to prioritize manual "Save" button action
-    };
-
-    const handleSaveToken = () => {
-        localStorage.setItem('zenodo_api_key', zenodoToken);
-        setIsTokenSaved(true);
-        setTimeout(() => setIsTokenSaved(false), 2000);
-    };
 
     const log = (message: string) => {
         setPublicationLog(prev => [...prev, `${new Date().toLocaleTimeString()}: ${message}`]);
@@ -260,27 +245,16 @@ const ZenodoUploader = forwardRef<ZenodoUploaderRef, ZenodoUploaderProps>(({
             {/* Zenodo Token Input */}
             <div className="form-group mt-4">
                 <label htmlFor="zenodoToken">🔑 Zenodo Access Token:</label>
-                <div className="flex gap-2">
-                    <input 
-                        type="password" 
-                        id="zenodoToken" 
-                        placeholder="Your Zenodo token" 
-                        value={zenodoToken} 
-                        onChange={handleTokenChange} 
-                        className="block w-full p-2 border rounded flex-1"
-                        aria-required="true"
-                        aria-label="Zenodo Access Token"
-                    />
-                    <button
-                        onClick={handleSaveToken}
-                        className={`px-4 py-2 rounded font-bold text-white transition-colors ${
-                            isTokenSaved ? 'bg-green-500 hover:bg-green-600' : 'bg-indigo-600 hover:bg-indigo-700'
-                        }`}
-                        type="button"
-                    >
-                        {isTokenSaved ? 'Salvo!' : 'Salvar'}
-                    </button>
-                </div>
+                <input 
+                    type="password" 
+                    id="zenodoToken" 
+                    placeholder="Your Zenodo token" 
+                    value={zenodoToken} 
+                    onChange={(e) => setZenodoToken(e.target.value)} 
+                    className="block w-full p-2 border rounded"
+                    aria-required="true"
+                    aria-label="Zenodo Access Token"
+                />
                 <small style={{ color: '#6b7280', fontSize: '12px' }}>
                     Obtain from: <a href="https://sandbox.zenodo.org/account/settings/applications/" target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:underline">Zenodo Sandbox</a> or 
                     <a href="https://zenodo.org/account/settings/applications/" target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:underline">Zenodo Production</a>. Ensure permissions for `deposit:write` and `deposit:actions`.
